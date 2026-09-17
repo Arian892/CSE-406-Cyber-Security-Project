@@ -22,23 +22,28 @@ with `-m` or with `PYTHONPATH` set by hand.
 
 ## How to run
 
+Every command below is a single line with no shell-specific syntax (no `\`
+line continuation, no inline `#` comments inside a block to copy-paste), so
+it runs unchanged in Windows PowerShell, Windows `cmd.exe`, and any
+Linux/macOS shell.
+
 **1. Train the secret classifier once** (produces `victim.pt`, not committed
-— it's gitignored, same as the attacker's `*.pt`/`*.npz` artifacts):
-```bash
+— it's gitignored, same as the attacker's `*.pt`/`*.npz` artifacts). The
+MNIST cache lives at `attacker/data/`, so from here that's `../attacker/data`:
+```
 cd victim
-python train_victim.py --epochs 5 --out victim.pt
+python train_victim.py --epochs 5 --out victim.pt --data-dir ../attacker/data
 ```
 Reference run (this repo, CPU, 3 epochs): **98.4%** MNIST test accuracy.
 
 **2. Start the server**, undefended (a bare smoke test):
-```bash
+```
 python victim_server.py --host 127.0.0.1 --port 9009 --model victim.pt
 ```
-With the Section 6 defences on:
-```bash
-python victim_server.py --port 9009 --model victim.pt \
-    --top-k 3 --noise-std 0.02 --rate-limit 2000 --rate-window 60
-# other knobs: --round-decimals 2, --label-only
+With the Section 6 defences on instead, run this in place of the line above
+(other knobs: `--round-decimals 2`, `--label-only`):
+```
+python victim_server.py --port 9009 --model victim.pt --top-k 3 --noise-std 0.02 --rate-limit 2000 --rate-window 60
 ```
 It answers every well-formed query (per the threat model, a single bad
 request never gets the attacker blocked) — the only lever it holds is how
@@ -47,11 +52,12 @@ control.
 
 **3. Point the attacker's client at it** (from a second terminal, in
 `attacker/`) — this is the same command from `attacker/README.md`, just
-against the real server instead of `mock_victim.py`:
-```bash
+against the real server instead of `mock_victim.py`. No `--data-dir` needed:
+`attack_client.py` defaults to `./data`, which is exactly where the cache
+lives now that it's inside `attacker/`:
+```
 cd ../attacker
-python attack_client.py --host 127.0.0.1 --port 9009 \
-    --pool mnist --data-dir ../data --queries 10000 --out transfer_10000.npz
+python attack_client.py --host 127.0.0.1 --port 9009 --pool mnist --queries 10000 --out transfer_10000.npz
 ```
 The client reports which flags (rounding / top-k / noise) the responses
 advertised, straight off the wire — no changes needed on that side to test
@@ -59,16 +65,21 @@ each defence on vs. off.
 
 **4. Run the equation-solving attack** (component E), independent of the
 server above — it can query a synthetic linear victim in-process, the real
-CNN in-process (diagnostic), or the real server over the network:
-```bash
-# Sanity check: a genuine linear/softmax victim -> ~100% fidelity, no training.
+CNN in-process (diagnostic), or the real server over the network. The
+`--target cnn` and `--mode network` variants evaluate against the real
+MNIST test set, so they need `--data-dir ../attacker/data` too.
+
+Sanity check: a genuine linear/softmax victim, near-100% fidelity, no training:
+```
 python equation_solve.py --mode offline --target linear
-
-# Diagnostic: the real trained CNN -> fidelity collapses (expected -- see below).
-python equation_solve.py --mode offline --target cnn --checkpoint victim.pt
-
-# Online: extract victim_server.py itself over the real wire protocol.
-python equation_solve.py --mode network --host 127.0.0.1 --port 9009
+```
+Diagnostic: the real trained CNN — fidelity collapses (expected, see below):
+```
+python equation_solve.py --mode offline --target cnn --checkpoint victim.pt --data-dir ../attacker/data
+```
+Online: extract `victim_server.py` itself over the real wire protocol:
+```
+python equation_solve.py --mode network --host 127.0.0.1 --port 9009 --data-dir ../attacker/data
 ```
 
 ## Why equation-solving "fails" against the CNN (on purpose)
