@@ -140,8 +140,13 @@ python knockoff_train.py --transfer b10000.npz --epochs 20 --T 2.0 --out k_b1000
 
 \item \textbf{Repeat} step 2--3 with an out-of-distribution query pool
   (\texttt{--pool fashion}) and with the victim's defences turned on
-  (\texttt{--top-k 3 --noise-std 0.02}, \texttt{--label-only},
-  \texttt{--rate-limit 2000 --rate-window 60}) to measure their effect.
+  (\texttt{--top-k 3 --noise-std 0.02}, \texttt{--label-only}) to measure
+  their effect on the same budget sweep. The rate limiter is evaluated
+  separately, at a much smaller quota (\texttt{--rate-limit 50
+  --rate-window 60}) chosen purely to make the demonstration fast and easy
+  to reproduce -- see Section~4.3; the mechanism being demonstrated (a hard
+  per-client cutoff at \texttt{ERROR code 4}) does not depend on the
+  specific quota value.
 \end{enumerate}
 
 \subsection{Expected Outcome (from the Design Report, Section 5)}
@@ -172,6 +177,23 @@ numbers below on a disjoint 3{,}000-image sample of the MNIST \emph{train}
 split instead (which the attacker never queries), giving an unbiased
 accuracy/fidelity number. This single measurement choice turned out to
 matter more than any defence setting we tested -- see Section~2.4.
+
+A second consequence of the same 10{,}000-image ceiling: at $q=30000$,
+\texttt{build\_query\_pool} can only draw 10{,}000 real images from the test
+split, so it silently pads the remaining 20{,}000 queries with synthetic
+uniform-noise images (\texttt{attack\_client.py}'s own documented fallback,
+``top up with noise if the test set is smaller''). We confirmed this
+directly: pixel statistics of \texttt{b30000.npz} show indices 0--9{,}999
+matching real MNIST digits (86--90\% of pixels within 0.05 of 0 or 1, the
+bimodal ink-on-background signature) and indices 10{,}000--29{,}999 matching
+uniform noise (mean $\approx 0.5$, std $\approx 0.289 = 1/\sqrt{12}$) almost
+exactly. So the ``30{,}000-query'' condition in Section~2.4 is really
+10{,}000 real in-distribution queries plus 20{,}000 noise queries, not
+30{,}000 in-distribution queries -- which is the more direct explanation
+for why its accuracy/fidelity barely exceeds the $q=10000$ result (Section~2.6):
+there is no additional real digit supervision past 10{,}000 queries for this
+pool, only more views of the victim's behaviour on inputs off the data
+manifold.
 
 \subsection{Actual Outcome}
 
@@ -264,36 +286,50 @@ Offline distillation (attacker console, excerpt from the $q=10000$ run):
 
 \subsection{Was the Attack Successful? Why / Why Not?}
 
-\textbf{Yes.} Attack A reconstructs a substitute that agrees with the victim
-93--99\% of the time across every budget and every defence configuration we
-tested, and its adversarial examples transfer to the real victim well above
-chance. It succeeds because the victim's response is, by construction, a
-full supervised training signal: every query hands the attacker exactly the
-label (and, undefended, the confidence) it would need to train a classifier
-directly, and \texttt{victim\_server.py} answers every well-formed query
-regardless of who is asking.
+\textbf{Yes, against every configuration it actually completed a budget
+against.} Excluding the rate limiter (addressed below, where it is cut off
+by design before finishing), Attack A reconstructs a substitute that agrees
+with the victim 91--99\% of the time across every in-distribution budget
+(1k--30k) and every defence configuration we tested (undefended, top-3 +
+noise, label-only); the out-of-distribution pool (Fashion-MNIST) is
+noticeably weaker at 84\%, but still clearly usable, matching the design
+report's own ``$\gtrsim 0.8\times$'' expectation rather than contradicting
+it. Its adversarial examples transfer to the real victim well above chance
+in every case. It succeeds because the victim's response is, by
+construction, a full supervised training signal: every query hands the
+attacker exactly the label (and, undefended, the confidence) it would need
+to train a classifier directly, and \texttt{victim\_server.py} answers every
+well-formed query regardless of who is asking.
 
-The one place it did \emph{not} fully succeed within budget was against the
-rate limiter (Section~4.3) -- not because the extracted model was worse, but
-because it was cut off before reaching the requested budget. Our first run
-also exposed a genuine implementation bug on the attacker side: the original
-\texttt{attack\_client.py} had no handling for an \texttt{ERROR} frame and
-crashed on it, discarding every query already collected, not just the ones
-after the quota. We fixed this (\texttt{attack\_client.py} now catches the
-rate-limit error, stops, and saves whatever it already has) and reran the
-demonstration -- see Section~4.3 for the corrected behaviour. That gap was
-an attacker-side robustness bug, not evidence the model itself resists
-extraction.
+Against the rate limiter (Section~4.3), Attack A did \emph{not} succeed at
+reaching its requested budget -- not because the extracted model was worse,
+but because the campaign was cut off by design before it could finish. Our
+first run also exposed a genuine implementation bug on the attacker side:
+the original \texttt{attack\_client.py} had no handling for an
+\texttt{ERROR} frame and crashed on it, discarding every query already
+collected, not just the ones after the quota. We fixed this
+(\texttt{attack\_client.py} now catches the rate-limit error, stops, and
+saves whatever it already has) and reran the demonstration -- see
+Section~4.3 for the corrected behaviour. That gap was an attacker-side
+robustness bug, not evidence the model itself resists extraction; a
+patient attacker that simply waits out repeated windows is not stopped by
+this mechanism, only slowed.
 
-Two results differ from the Design Report's Section~5 expectations, and
-both differences are informative rather than a sign of a broken attack:
+Three results differ from the Design Report's Section~5 expectations, and
+all three are informative rather than a sign of a broken attack:
 \begin{itemize}
 \item At $q\ge5000$, in-distribution accuracy/fidelity (0.97--0.99) sit at or
   slightly \emph{above} the predicted 0.90--0.98$\times$ band. MNIST is an
   easy, low-ambiguity 10-class task for a 99\%-accurate teacher, so
   temperature-scaled distillation over 20 epochs converges further than the
   conservative estimate assumed.
-\item Section~2.4 below is the bigger surprise: the tested defence settings
+\item Going from $q=10000$ to $q=30000$ barely moves accuracy/fidelity at
+  all (Section~2.4). The more direct cause is Section~2.3's second finding:
+  20{,}000 of those 30{,}000 queries are synthetic noise, not additional
+  real digit supervision, so there is little new signal to learn from past
+  the first 10{,}000 queries for this pool -- this, not only distillation
+  saturating, is why the curve flattens.
+\item Section~2.4 is the bigger surprise: the tested defence settings
   barely move these numbers at all.
 \end{itemize}
 
@@ -552,18 +588,25 @@ that only stops a single, non-resuming client.
 \section{Conclusion}
 %=====================================================================
 
-Both attacks worked as designed, and both taught us something the design
-report's expected-outcome tables could not, because those numbers had to be
-measured, not assumed. Attack A (learning-based) reliably reconstructs a
-93--99\%-fidelity substitute of the real victim from nothing but its own
-prediction API, across every budget from 1{,}000 to 30{,}000 queries, and its
-adversarial examples transfer to the real victim well above chance. Attack B
-(equation-solving) is a perfect, near-instant break of a genuine
-linear/softmax victim and a correctly-predicted total failure against the
-real CNN -- confirmation that its assumptions, not its implementation, are
-what limit it. The defence layer stops the equation-solving attack for free
-(it never worked against a CNN to begin with) but only meaningfully stops
-the learning-based attack through rate limiting; output minimisation and
+Attack A and Attack B behaved consistently with their core design
+assumptions, although several measured outcomes differed from the
+quantitative expectations in the Design Report. Attack A (learning-based) succeeds at its
+actual goal, the real \texttt{VictimCNN}: a 91--99\%-fidelity substitute
+from nothing but the prediction API, across every in-distribution budget it
+was allowed to complete (rate limiting cuts it off by design, not by
+degrading it -- Section~2.6), and its adversarial examples transfer to the
+real victim well above chance. Attack B (equation-solving) succeeds only
+against a genuine linear/softmax victim -- near-perfect, in under 800
+queries, no training loop -- and, against that same real CNN, fails exactly
+as predicted, collapsing to chance level. Both outcomes were measured, not
+assumed, and both confirm the design report's expected-outcome tables rather
+than contradicting them, even where the measured numbers differ in degree
+(Section~2.6). Attack B's CNN failure is a confirmation of its stated
+assumptions, not a bug -- the same distinction the design report itself
+draws between the two attacks. The defence layer stops the equation-solving
+attack for free (it never worked against a CNN to begin with) but only
+meaningfully stops the learning-based attack through rate limiting; output
+minimisation and
 calibrated noise, at the settings we tested, are real but weak friction on
 an easy, low-ambiguity task like MNIST digit classification. The realistic
 goal the design report set out to demonstrate -- making stealing more
