@@ -1,22 +1,4 @@
-"""
-knockoff_train.py  --  ARIAN.  The OFFLINE extraction step.
 
-No network here. It loads the transfer set written by attack_client.py and
-distills a substitute ("knockoff") model f_hat from the victim's soft labels,
-using a temperature-scaled distillation loss. The knockoff architecture may
-differ from the victim's -- functionality, not weights, is what we copy.
-
-It reports:
-  * val fidelity  -- how often f_hat's argmax agrees with the victim's argmax
-                     on a held-out slice of the transfer set (offline proxy for
-                     true fidelity; a networked re-query gives the exact number).
-  * val accuracy  -- against ground-truth labels, only if a labelled test set
-                     is available (MNIST test via torchvision).
-
-Run:
-    python knockoff_train.py --transfer transfer_set_10k.npz \
-        --epochs 20 --T 2.0 --out knockoff_10k.pt
-"""
 
 import argparse
 

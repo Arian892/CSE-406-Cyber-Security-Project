@@ -1,41 +1,3 @@
-"""
-protocol.py  --  Shared wire protocol for the Model-Extraction project (Group 9).
-
-This is the SHARED file: the victim server (Pritu) and the attack client (Arian)
-both import it so that every byte on the wire is packed/unpacked identically.
-It implements exactly the framing described in the design report:
-
-  * A fixed 12-byte header, big-endian, struct format ">HBBII".
-  * A length-prefixed application-layer frame on top of TCP (which gives a
-    reliable byte stream but no message boundaries), so we always know how
-    many payload bytes follow and can reassemble across TCP segmentation.
-
-Header (12 bytes)                     struct ">HBBII"
-    off field        size type    meaning
-    0   MAGIC        2 B  uint16  0x4D58 ("MX"): version/sanity guard
-    2   VERSION      1 B  uint8   protocol version = 1
-    3   MSG_TYPE     1 B  uint8   1=REQUEST, 2=RESPONSE, 3=ERROR
-    4   REQUEST_ID   4 B  uint32  matches a response to its request
-    8   PAYLOAD_LEN  4 B  uint32  number of payload bytes that follow
-
-REQUEST payload (attacker -> victim)  struct ">HHB" + float32[]
-    H   2 B uint16  image height
-    W   2 B uint16  image width
-    C   1 B uint8   channels (1 = grayscale)
-    PIXELS  H*W*C*4 B  float32[] row-major, normalized to [0,1], big-endian
-
-RESPONSE payload (victim -> attacker) struct ">HB" + float32[]
-    K     2 B uint16  number of classes
-    FLAGS 1 B uint8   bit0=probs present, bit1=top-k truncated, bit2=noised
-    PROBS K*4 B float32[]  class probabilities after the defence layer
-
-ERROR payload                          struct ">H"
-    CODE  2 B uint16  error code (see ERR_* below)
-
-All multi-byte integer fields AND the float arrays are big-endian (network
-order). numpy dtype ">f4" is used for the pixel/prob arrays so the float bytes
-are also in network order.
-"""
 
 import socket
 import struct
@@ -49,7 +11,7 @@ import numpy as np
 MAGIC = 0x4D58          # "MX"
 VERSION = 1
 
-# Message types
+# Message type
 MSG_REQUEST = 1
 MSG_RESPONSE = 2
 MSG_ERROR = 3

@@ -1,23 +1,4 @@
-"""
-attack_client.py  --  ARIAN.  The black-box query engine + response parser.
 
-This is the ONLINE phase of the attack. It holds only a socket: for each input
-it sends a REQUEST frame, reads back the RESPONSE frame, and records the
-(input, prediction) pair. It never sees weights or gradients. After q queries
-it writes the whole transfer set to disk; knockoff_train.py trains on it later,
-fully offline.
-
-Key properties (matching the design report):
-  * Non-adaptive: the query inputs are fixed in advance (a query pool), which
-    helps evade query-pattern / distribution detectors.
-  * Budget sweep: run with --queries in {1000, 5000, 10000, 30000}.
-  * Query pools: in-distribution (MNIST), out-of-distribution (Fashion-MNIST),
-    or uniform noise -- to reproduce the report's ID vs OOD comparison.
-
-Run (against the mock or the real victim, same command):
-    python attack_client.py --host 127.0.0.1 --port 9009 \
-        --pool mnist --queries 10000 --out transfer_set_10k.npz
-"""
 
 import argparse
 import socket

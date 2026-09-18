@@ -1,29 +1,4 @@
-"""
-victim_server.py  --  PRITU.  The real victim: secret classifier over TCP.
 
-Loads the secret CNN (victim.pt, trained by train_victim.py), listens on a
-TCP socket, decodes REQUEST frames (protocol.py), runs inference, routes
-the softmax output through the defence layer (defence.py), and returns
-RESPONSE frames -- exactly the contract mock_victim.py stood in for, so
-the attacker's client (attacker/attack_client.py) is unmodified when
-pointed at this server instead.
-
-Component A of the design report:
-    "Loads the secret CNN, listens on TCP, decodes REQUEST frames, runs
-     inference, applies the defence, returns RESPONSE frames."
-
-The victim answers every well-formed query (the report's threat model: a
-single bad request cannot get the attacker blocked) -- the only lever held
-here is how much information each answer leaks, via --round-decimals,
---top-k, --label-only, --noise-std, and the per-client quota via
---rate-limit / --rate-window (Section 6 of the report).
-
-Run:
-    python victim_server.py --host 127.0.0.1 --port 9009 --model victim.pt
-    # with defences on:
-    python victim_server.py --port 9009 --model victim.pt \
-        --top-k 3 --noise-std 0.02 --rate-limit 2000 --rate-window 60
-"""
 
 from __future__ import annotations
 

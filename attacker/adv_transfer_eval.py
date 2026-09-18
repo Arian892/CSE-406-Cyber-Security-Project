@@ -1,29 +1,4 @@
-"""
-adv_transfer_eval.py  --  ARIAN.  Adversarial-example transfer, offline.
 
-Both READMEs and the design report commit to reporting three metrics for
-Attack A: accuracy, fidelity, and adversarial-example transfer. The first two
-are already covered by knockoff_train.py; this file covers the third, which
-had no implementation anywhere in the project. FGSM (Goodfellow et al. 2015)
-is implemented by hand below -- no attack library is used, matching the
-project's "implement the core attack yourself" rule.
-
-This is an EVALUATION/SCORING script, not part of the black-box attack: it
-loads the real victim checkpoint directly (via victim/model.py) to measure
-how well a knockoff transfers, exactly as knockoff_train.py already reads
-real MNIST labels to score accuracy. The attack itself (attack_client.py,
-knockoff_train.py) never touches victim internals.
-
-Evaluates on the MNIST *train* split by default, not the test split: the
---pool mnist query pool in attack_client.py is drawn from the MNIST test
-split, so at query budgets near or above 10,000 the test split is no longer
-a clean holdout (see the final report, Section 2.3). Pass --split test only
-if you know the query budget was small enough not to matter.
-
-Run:
-    python adv_transfer_eval.py --knockoff k_b10000.pt --victim ../victim/victim.pt \
-        --data-dir ./data --eps 0.05 0.1 0.2
-"""
 
 import argparse
 import os

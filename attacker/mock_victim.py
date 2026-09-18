@@ -1,25 +1,4 @@
-"""
-mock_victim.py  --  A DEVELOPMENT STAND-IN for the real victim server.
 
-This is NOT a graded file and NOT the real victim. Pritu owns the real
-victim_server.py (loads the secret victim.pt, applies defence.py, etc.).
-This mock exists purely so Arian can build and test the attack client and
-the knockoff trainer against something that speaks the agreed protocol,
-without waiting for the real server to be finished.
-
-Contract it honours (identical to the real server):
-  * accepts REQUEST frames, replies with RESPONSE frames using protocol.py
-  * returns a K-class probability vector with FLAG_PROBS set
-  * unknown magic/version/type -> ERROR frame
-
-The "secret model" here is a small, randomly-initialised CNN by default, or
-a checkpoint you point it at with --model (so you can smoke-test fidelity).
-Swap this out for the real server at integration time -- the client does not
-change, because both speak protocol.py.
-
-Run:
-    python mock_victim.py --host 127.0.0.1 --port 9009
-"""
 
 import argparse
 import socket

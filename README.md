@@ -45,6 +45,19 @@ say plain `import protocol as P` and resolve it from their own directory,
 exactly as before the reorganisation. If `protocol.py` ever changes, copy
 it into `attacker/protocol.py` again (a one-line `cp`).
 
+## Setup
+
+```
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+`requirements.txt` pins `numpy`, `torch`, and `torchvision` to the exact
+versions every result in this repo was generated with — see the comments in
+that file if you want a CPU-only torch build instead of the default (larger)
+CUDA-enabled wheel. No other third-party packages are used anywhere in the
+project.
+
 ## End-to-end run
 
 Every command below is a single line with no shell-specific syntax (no

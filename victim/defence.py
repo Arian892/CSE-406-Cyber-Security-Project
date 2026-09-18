@@ -1,26 +1,3 @@
-"""
-defence.py  --  PRITU.  The victim's defence layer (design report, Section 6).
-
-Sits between the secret classifier's raw softmax output and the RESPONSE
-frame the victim sends back. Implements the layered defences the report
-evaluates on-vs-off:
-
-  6.1 Output minimisation (the primary control)
-      - round probabilities to r decimals
-      - expose only the top-k classes (rest zeroed out)
-      - label-only / argmax mode (the k=1 special case)
-  6.2 Prediction perturbation
-      - small calibrated noise added to the soft-label vector, argmax
-        preserved for honest users, but the distillation signal is
-        corrupted for an attacker training a knockoff on it
-  6.3 Query-pattern monitoring and rate limiting
-      - a per-client sliding-window quota; over quota -> ERROR code 4
-        (protocol.ERR_RATE_LIMIT), enforced by victim_server.py
-
-Every probability transform sets the RESPONSE FLAGS bits (protocol.py)
-so the attacker's client can see, from the wire, which defences were
-applied (attacker/attack_client.py already decodes and reports these).
-"""
 
 from __future__ import annotations
 

@@ -1,18 +1,4 @@
-"""
-train_victim.py  --  PRITU.  Trains the secret classifier and saves victim.pt.
 
-This is step 1 of the design report's "Laboratory build" (Section 4.1):
-    "Train the secret classifier on a public dataset (MNIST victim;
-     Fashion-MNIST / uniform noise as an out-of-distribution query pool).
-     Fix SEED = 1337 for NumPy, PyTorch and Python random; save victim.pt
-     and record its test accuracy."
-
-Offline and one-shot: no network, no attacker involved. Produces the
-checkpoint that victim_server.py loads and defence.py then guards.
-
-Run:
-    python train_victim.py --epochs 5 --out victim.pt
-"""
 
 from __future__ import annotations
 

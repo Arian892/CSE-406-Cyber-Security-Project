@@ -1,17 +1,4 @@
-"""
-model.py  --  PRITU.  The secret classifier's architecture.
 
-This defines the CNN that victim_server.py loads and serves, and that
-train_victim.py trains and checkpoints as victim.pt. It is deliberately
-unrelated to any architecture the attacker's side uses (MockCNN in
-mock_victim.py, SmallCNN in knockoff_train.py): per the threat model
-(Section 1.3 of the design report), the attacker has black-box query
-access only and never sees this architecture or its weights -- only
-(input, prediction) pairs cross the wire, via protocol.py.
-
-Input:  (N, 1, 28, 28) float tensor, pixels normalised to [0, 1]
-Output: (N, num_classes) raw logits (softmax is applied by the caller)
-"""
 
 from __future__ import annotations
 

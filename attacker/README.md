@@ -26,28 +26,17 @@ build query pool → send REQUEST frames → record RESPONSE probs
 
 ## How to run
 
-Terminal 1 — start a victim (mock for now; the real one later, same protocol):
-```bash
-python mock_victim.py --host 127.0.0.1 --port 9009
-# or point it at a checkpoint to smoke-test fidelity:
-# python mock_victim.py --port 9009 --model victim.pt
-```
+Full setup and every command used to produce the Final Report's results
+(server configs, budget sweeps, knockoff training, evaluation) live in the
+top-level [README.md](../README.md#setup) — kept in one place rather than
+duplicated here, since two copies of the same commands drift out of sync
+(see `protocol.py` below for exactly that problem). The short version:
+`mock_victim.py` stands in for `victim_server.py` when you just want to
+smoke-test `attack_client.py`/`knockoff_train.py` without training a real
+victim first; everything else points at [README.md](../README.md#reproducing-the-final-reports-results).
 
-Terminal 2 — run the attack, sweeping the query budget:
-```bash
-for q in 1000 5000 10000 30000; do
-  python attack_client.py --host 127.0.0.1 --port 9009 \
-      --pool mnist --queries $q --out transfer_${q}.npz
-done
-```
-Pools: `mnist` (in-distribution), `fashion` (out-of-distribution), `uniform`
-(synthetic OOD / offline fallback).
-
-Train and evaluate the knockoff (offline, no network):
-```bash
-python knockoff_train.py --transfer transfer_10000.npz \
-    --epochs 20 --T 2.0 --out knockoff_10000.pt
-```
+Pools for `attack_client.py --pool`: `mnist` (in-distribution), `fashion`
+(out-of-distribution), `uniform` (synthetic OOD / offline fallback).
 
 ## Integration with Pritu
 
