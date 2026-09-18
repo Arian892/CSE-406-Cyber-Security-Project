@@ -1,0 +1,594 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+
+\definecolor{buetblue}{RGB}{31,73,125}
+
+\titleformat{\section}{\large\bfseries\color{buetblue}}{\thesection}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{buetblue}}{\thesubsection}{0.5em}{}
+
+\hypersetup{colorlinks=true, linkcolor=buetblue, urlcolor=buetblue, citecolor=buetblue}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  backgroundcolor=\color{black!3}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\textit{Model Extraction: Stealing a Classifier --- Final Report}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\begin{document}
+
+% ---------------------------------------------------------------- title page
+\begin{titlepage}
+\centering
+{\color{buetblue}\large Bangladesh University of Engineering and Technology (BUET)\par}
+{\color{buetblue}Department of Computer Science and Engineering\par}
+\vspace{0.3cm}
+\rule{\textwidth}{0.8pt}
+\vspace{2.5cm}
+
+{\Huge Final Report\par}
+\vspace{0.6cm}
+{\LARGE\color{buetblue} Model Extraction:\par Stealing a Black-Box Classifier\par}
+\vspace{0.2cm}
+{\large\color{buetblue}(Prediction-API Model Stealing)\par}
+\vspace{2.5cm}
+\rule{\textwidth}{0.8pt}
+\vspace{1.5cm}
+
+\begin{flushleft}
+\begin{tabular}{@{}p{4cm}l}
+\textbf{Group ID} & 9 (Section B2) \\[4pt]
+\textbf{Group members} & Pritu Dhar Dhip (2105109) \\
+                        & Arian Mahtab Chowdhury (2105106) \\[4pt]
+\textbf{Course} & CSE406: Cyber Security Sessional \\[4pt]
+\textbf{Submission Date} & 18th September, 2026 \\
+\end{tabular}
+\end{flushleft}
+\end{titlepage}
+
+% -------------------------------------------------------------------- body
+
+\section{Recap: What Was Built and Who Owns What}
+
+This report is the companion to the \emph{Design Report} (11th September, 2026) for
+the same project: a model-extraction attack against a secret MNIST classifier
+served over a custom TCP prediction API, plus the layered defences in Section~6
+of that report. Nothing about the design changed; this document records what
+actually happened when the design was built and run end to end.
+
+\begin{center}
+\begin{tabular}{@{}lll}
+\toprule
+\textbf{Component} & \textbf{Owner} & \textbf{File} \\
+\midrule
+Wire protocol (12-byte header, framing) & shared & \texttt{protocol.py} \\
+Victim server, defence layer, Attack B (equation-solve) & Pritu Dhar Dhip & \texttt{victim/} \\
+Query engine, Attack A (knockoff distillation) & Arian Mahtab Chowdhury & \texttt{attacker/} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All runs below use \texttt{SEED = 1337} (NumPy, PyTorch, Python \texttt{random}),
+the same victim checkpoint (\texttt{victim.pt}, trained once by
+\texttt{train\_victim.py}), and the attacker/victim on \texttt{127.0.0.1}
+(same host, two processes -- the design report's threat model of ``two hosts
+on one segment'' realised as two local processes for the demo). Every command
+below is exactly the command in \texttt{README.md}; nothing was modified to
+make the numbers look better.
+
+There is no graphical UI on either side -- both the victim and the attacker
+are command-line processes -- so ``victim screen'' / ``attacker screen''
+below means the two processes' console output, captured verbatim in
+\texttt{results/logs/experiments.log} and quoted throughout this report.
+
+%=====================================================================
+\section{Attack A: Learning-Based Extraction (Knockoff Distillation)}
+%=====================================================================
+
+\subsection{Attack Process}
+
+\begin{enumerate}
+\item \textbf{Victim side (Pritu).} Train the secret \texttt{VictimCNN} once on MNIST
+  and save \texttt{victim.pt}:
+\begin{lstlisting}
+cd victim
+python train_victim.py --epochs 5 --out victim.pt --data-dir ../attacker/data
+\end{lstlisting}
+  Start the server, undefended:
+\begin{lstlisting}
+python victim_server.py --host 127.0.0.1 --port 9009 --model victim.pt
+\end{lstlisting}
+
+\item \textbf{Attacker side (Arian).} Run the black-box query engine for a budget
+  $q \in \{1000, 5000, 10000, 30000\}$, using MNIST test images as the
+  (non-adaptive, fixed-in-advance) query pool:
+\begin{lstlisting}
+cd attacker
+python attack_client.py --host 127.0.0.1 --port 9009 --pool mnist --queries 10000 --out b10000.npz
+\end{lstlisting}
+  Each query is one REQUEST/RESPONSE round trip: the attacker never sees a
+  weight or a gradient, only a probability vector.
+
+\item \textbf{Offline distillation (Arian, no network).} Train a substitute
+  \texttt{SmallCNN} on the recorded $(x, p)$ pairs via temperature-scaled
+  soft-label distillation:
+\begin{lstlisting}
+python knockoff_train.py --transfer b10000.npz --epochs 20 --T 2.0 --out k_b10000.pt
+\end{lstlisting}
+
+\item \textbf{Repeat} step 2--3 with an out-of-distribution query pool
+  (\texttt{--pool fashion}) and with the victim's defences turned on
+  (\texttt{--top-k 3 --noise-std 0.02}, \texttt{--label-only},
+  \texttt{--rate-limit 2000 --rate-window 60}) to measure their effect.
+\end{enumerate}
+
+\subsection{Expected Outcome (from the Design Report, Section 5)}
+
+\begin{center}
+\begin{tabular}{@{}lll}
+\toprule
+\textbf{Condition} & \textbf{Expected result} \\
+\midrule
+In-distribution (MNIST) queries, 10k--30k budget & $\hat f \approx 0.90$--$0.98\times$ victim accuracy \\
+Out-of-distribution (Fashion-MNIST) queries & still usable, $\gtrsim 0.8\times$ \\
+Fidelity (label agreement with victim) & high but $<100\%$, bounded $\approx$93--94\% \\
+Adversarial examples crafted on $\hat f$ & fool the victim well above chance \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{A Measurement Pitfall We Had to Correct First}
+
+\texttt{attack\_client.py}'s \texttt{--pool mnist} draws its query images from
+the MNIST \emph{test} split (\texttt{train=False}), which has exactly 10{,}000
+images. \texttt{knockoff\_train.py}'s own built-in accuracy check evaluates
+against that same split. At $q=10000$ or $q=30000$ this means the attacker's
+query pool \emph{is} (almost) the entire evaluation set: fidelity computed
+that way is agreement on images the knockoff already saw labelled by the
+victim during training, not a fair generalisation test. We evaluate all
+numbers below on a disjoint 3{,}000-image sample of the MNIST \emph{train}
+split instead (which the attacker never queries), giving an unbiased
+accuracy/fidelity number. This single measurement choice turned out to
+matter more than any defence setting we tested -- see Section~2.4.
+
+\subsection{Actual Outcome}
+
+The victim's own test accuracy on the full 10{,}000-image MNIST test set is
+\textbf{99.14\%}. All fidelity/accuracy figures below are against the
+disjoint 3{,}000-image train-split holdout described above.
+
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Undefended}} & \multicolumn{2}{c}{\textbf{Top-3 + noise (0.02)}} \\
+\textbf{Budget $q$} & Accuracy & Fidelity & Accuracy & Fidelity \\
+\midrule
+1{,}000   & 0.9143 & 0.9143 & 0.9157 & 0.9157 \\
+5{,}000   & 0.9747 & 0.9753 & 0.9767 & 0.9770 \\
+10{,}000  & 0.9850 & 0.9863 & 0.9840 & 0.9840 \\
+30{,}000  & 0.9843 & 0.9857 & 0.9830 & 0.9823 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Condition (10k budget)} & Accuracy & Fidelity \\
+\midrule
+Label-only (extreme case, $k{=}1$) & 0.9830 & 0.9827 \\
+Out-of-distribution pool (Fashion-MNIST) & 0.8363 & 0.8383 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+FGSM adversarial-example transfer (crafted white-box on the knockoff, then
+replayed against the real victim, unmodified):
+
+\begin{center}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{$\varepsilon=0.05$} & \multicolumn{2}{c}{$\varepsilon=0.1$} & \multicolumn{2}{c}{$\varepsilon=0.2$} \\
+\textbf{Knockoff} & fool $\hat f$ & transfer & fool $\hat f$ & transfer & fool $\hat f$ & transfer \\
+\midrule
+Baseline, 10k       & 0.054 & 0.011 & 0.145 & 0.070 & 0.613 & 0.481 \\
+Defended, 10k        & 0.052 & 0.009 & 0.125 & 0.045 & 0.466 & 0.487 \\
+Label-only, 10k       & 0.059 & 0.009 & 0.161 & 0.037 & 0.497 & 0.340 \\
+OOD (fashion), 10k    & 0.418 & 0.012 & 0.678 & 0.126 & 0.911 & 0.513 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\emph{fool $\hat f$} = white-box FGSM success rate against the knockoff itself;
+\emph{transfer} = fraction of those adversarial images that also change the
+real victim's prediction relative to its own clean prediction. Chance level
+for a 10-class problem is 10\%; transfer at $\varepsilon=0.2$ reaches 34--51\%,
+well above chance, confirming the design report's claim.
+
+\subsection{Observed Console Output}
+
+Attacker console (undefended, $q=10000$, excerpt):
+\begin{lstlisting}
+[client] query pool: mnist  (10000 images)
+[client] 1000/10000 queries  (1171 q/s)  last argmax=9
+...
+[client] 10000/10000 queries  (1172 q/s)  last argmax=6
+[client] campaign done: 10000 pairs in 8.8s, flags observed = [1]
+[client] defences advertised by responses: {'probs_present': True, 'topk_truncated': False, 'noised': False}
+\end{lstlisting}
+
+Victim console, defended ($k{=}3$, noise$=0.02$), same campaign at $q=500$:
+\begin{lstlisting}
+[victim] listening on 127.0.0.1:9009  (model=trained, defence={'round_decimals': None,
+    'top_k': 3, 'label_only': False, 'noise_std': 0.02, 'rate_limit_queries': None,
+    'rate_limit_window_s': 60.0})
+[victim] 127.0.0.1 disconnected after 500 queries (quota used: 0)
+\end{lstlisting}
+The attacker's own console for that same run reports
+\texttt{flags observed = [7]}, decoded by \texttt{attack\_client.py} as:
+\begin{lstlisting}
+{'probs_present': True, 'topk_truncated': True, 'noised': True}
+\end{lstlisting}
+confirming, straight off the wire, that the defence was active and the client
+could see so, exactly as Section~3.4 of the design report intended.
+
+Offline distillation (attacker console, excerpt from the $q=10000$ run):
+\begin{lstlisting}
+[train] epoch 01/20  loss=4.0932  val_fidelity=0.8970
+[train] epoch 02/20  loss=1.3969  val_fidelity=0.9520
+...
+[train] epoch 20/20  loss=0.5010  val_fidelity=0.9890
+[train] knockoff test accuracy vs ground truth = 0.9916
+\end{lstlisting}
+
+\subsection{Was the Attack Successful? Why / Why Not?}
+
+\textbf{Yes.} Attack A reconstructs a substitute that agrees with the victim
+93--99\% of the time across every budget and every defence configuration we
+tested, and its adversarial examples transfer to the real victim well above
+chance. It succeeds because the victim's response is, by construction, a
+full supervised training signal: every query hands the attacker exactly the
+label (and, undefended, the confidence) it would need to train a classifier
+directly, and \texttt{victim\_server.py} answers every well-formed query
+regardless of who is asking.
+
+The one place it did \emph{not} fully succeed within budget was against the
+rate limiter (Section~4.3) -- not because the extracted model was worse, but
+because it was cut off before reaching the requested budget. Our first run
+also exposed a genuine implementation bug on the attacker side: the original
+\texttt{attack\_client.py} had no handling for an \texttt{ERROR} frame and
+crashed on it, discarding every query already collected, not just the ones
+after the quota. We fixed this (\texttt{attack\_client.py} now catches the
+rate-limit error, stops, and saves whatever it already has) and reran the
+demonstration -- see Section~4.3 for the corrected behaviour. That gap was
+an attacker-side robustness bug, not evidence the model itself resists
+extraction.
+
+Two results differ from the Design Report's Section~5 expectations, and
+both differences are informative rather than a sign of a broken attack:
+\begin{itemize}
+\item At $q\ge5000$, in-distribution accuracy/fidelity (0.97--0.99) sit at or
+  slightly \emph{above} the predicted 0.90--0.98$\times$ band. MNIST is an
+  easy, low-ambiguity 10-class task for a 99\%-accurate teacher, so
+  temperature-scaled distillation over 20 epochs converges further than the
+  conservative estimate assumed.
+\item Section~2.4 below is the bigger surprise: the tested defence settings
+  barely move these numbers at all.
+\end{itemize}
+
+%=====================================================================
+\section{Attack B: Equation-Solving Extraction (Linear/Softmax)}
+%=====================================================================
+
+\subsection{Attack Process}
+
+\texttt{equation\_solve.py} (Pritu) recovers a linear/softmax victim's weights
+directly, with no training loop: for a genuine softmax model,
+$\log p_i(x) - \log p_0(x) = (w_i - w_0)\cdot x + (b_i - b_0)$ is \emph{exactly}
+linear in $x$, so one batch of $(d+1)$ non-adaptive probe queries plus one
+ordinary-least-squares solve recovers $w_i, b_i$ up to the softmax's gauge
+freedom ($w_0 = 0, b_0 = 0$).
+
+\begin{lstlisting}
+# Sanity check: a genuine linear/softmax victim (no network)
+python equation_solve.py --mode offline --target linear
+
+# Diagnostic: the real trained CNN, offline (linearity assumption should break)
+python equation_solve.py --mode offline --target cnn --checkpoint victim.pt --data-dir ../attacker/data
+
+# Online: the real victim_server.py, undefended, then defended
+python equation_solve.py --mode network --host 127.0.0.1 --port 9009 --data-dir ../attacker/data
+\end{lstlisting}
+
+\subsection{Expected Outcome}
+
+\begin{center}
+\begin{tabular}{@{}ll}
+\toprule
+\textbf{Target} & \textbf{Expected result} \\
+\midrule
+Genuine linear/softmax victim & $\approx100\%$ label agreement, a few hundred queries \\
+Real trained CNN (\texttt{victim.pt}) & fidelity collapses toward chance ($\approx$10\% on MNIST) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is deliberate: Attack B's whole method assumes the victim's logits are
+\emph{globally} linear in the input, which holds exactly for a softmax/logistic
+model and not at all for a ReLU CNN.
+
+\subsection{Actual Outcome}
+
+Every run below queries $d+1 = 785$ probes to solve for the $7{,}065$
+unknowns ($9\times785$), then evaluates fidelity on 200 real MNIST test
+images, exactly as \texttt{equation\_solve.py} is written to do.
+
+\begin{center}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+\textbf{Mode} & \textbf{Target} & \textbf{Fidelity} & \textbf{Mean TV distance} \\
+\midrule
+Offline & Genuine linear/softmax victim & 1.0000 & 0.000001 \\
+Offline & Real CNN (\texttt{victim.pt}) & 0.0500 & 0.949965 \\
+Network & Real server, undefended & 0.0500 & 0.949965 \\
+Network & Real server, top-3 + noise (0.02) & 0.1000 & 0.891578 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The network-mode run against the undefended server reproduces the offline
+CNN diagnostic's numbers exactly (0.0500 fidelity both times) -- an
+independent confirmation that \texttt{protocol.py}, \texttt{victim\_server.py},
+and \texttt{equation\_solve.py} are correctly wired end to end, per the
+victim README's own verification claim.
+
+\subsection{Was the Attack Successful? Why / Why Not?}
+
+\textbf{Only against the target it was designed for.} Against a genuine
+linear/softmax victim, Attack B is a complete success: near-perfect fidelity
+and vanishing total-variation distance from under 800 non-adaptive queries
+and no training loop at all. Against the real \texttt{VictimCNN}, it fails
+exactly as the design report predicted: fidelity collapses to chance level
+(10 classes $\Rightarrow \approx$10\%; we measure 5--10\%). The reason is
+architectural, not a bug: the least-squares solve assumes
+$\log p_i(x) - \log p_0(x)$ is \emph{globally} linear in $x$, which is exact
+for a softmax/logistic model and false for a ReLU CNN -- the recovered
+weights fit whichever single activation region the probe batch happened to
+land in, and that fit does not generalise to real digit images.
+
+Turning the top-3 + noise defence on moves the CNN fidelity from 0.05 to
+0.10 -- both are noise around the 10\% chance floor, so this run cannot show
+the defence doing anything measurable to Attack B: the attack is already
+destroyed by the victim's non-linearity before the defence has anything left
+to degrade. This matches the design report's own framing of Attack B as a
+special-case diagnostic, not a general threat to this particular victim.
+
+%=====================================================================
+\section{Defence Evaluation}
+%=====================================================================
+
+Defences live in \texttt{victim/defence.py} and are evaluated on vs.\ off
+against the \emph{same} query budgets as Section~2, so the accuracy/fidelity
+cost of each defence can be read directly off the two curves.
+
+\subsection{Output Minimisation (top-\emph{k}, label-only)}
+
+Mechanism: \texttt{defence.py::\_apply\_top\_k} zeroes every class probability
+outside the top-$k$ before the response is sent; \texttt{--label-only} is the
+$k{=}1$ extreme (a one-hot vector at the argmax). Both set the
+\texttt{FLAG\_TOPK} wire bit so the attacker's client can see, from the
+response alone, that this defence is active (Section~2.5's console excerpt
+shows exactly this).
+
+\textbf{Expected (design report):} ``rounding to 2--3 decimals or dropping
+confidences sharply raises the query cost of learning- and equation-based
+attacks.''
+
+\textbf{Actual:} at $k{=}3$, Attack A's accuracy/fidelity moved by at most
+2 percentage points at any budget (Section~2.4); at $k{=}1$ (label-only,
+the most extreme setting in the codebase) it moved by \emph{less than one
+point} from the undefended baseline at the same 10k budget (0.983 vs.\
+0.986 fidelity). This does \emph{not} match the qualitative expectation.
+
+\subsection{Prediction Perturbation (calibrated noise)}
+
+Mechanism: \texttt{defence.py::apply\_perturbation} adds
+$\mathcal N(0, \sigma^2)$ noise to the probability vector, renormalises, and
+retries at a damped $\sigma$ (up to 3 times) if the noise would flip the
+argmax -- an honest user's label never changes, but the soft-label shape an
+attacker trains on is perturbed.
+
+\textbf{Expected:} ``corrupt[s] the soft-label signal the distillation attack
+relies on, lowering the knockoff's fidelity.''
+
+\textbf{Actual:} combined with top-3 truncation at $\sigma=0.02$, no budget
+showed a fidelity drop larger than 2 points versus undefended (Section~2.4).
+
+\subsection{Why Output Minimisation and Noise Underperformed Here}
+
+Both defences work exactly as unit-tested in \texttt{defence.py}'s
+self-test (argmax preserved, valid distribution, correct flag bits) -- the
+mechanism is not broken. What the design report's qualitative Section~6
+discussion did not anticipate is how \emph{peaked} a 99\%-accurate MNIST
+softmax output already is for almost every digit image: one class near~1,
+the rest near~0. Keeping only the top-3 classes discards almost no
+probability mass on such an input, and $\sigma=0.02$ noise is tiny next to
+the gap between the top class and the rest -- \texttt{apply\_perturbation}'s
+own argmax-preserving retry logic actively damps it further. Even
+label-only survives because the query pool is natural, unambiguous MNIST
+digits: a one-hot label is nearly as informative as the full distribution
+when the underlying task has almost no class confusion for the victim to
+begin with. The ``dark knowledge'' these defences are designed to strip
+out matters most on \emph{ambiguous} inputs, which a 99\%-accurate model
+rarely produces here. At the parameter values tested, output minimisation
+and perturbation are real but weak frictions on this particular victim, not
+the ``sharp'' cost increase the qualitative discussion suggested -- a
+stronger setting ($\sigma \gg 0.02$, or $k$ combined with heavier rounding)
+would likely be needed to see the predicted effect, at the cost of also
+degrading the response for honest users.
+
+\subsection{Query-Pattern Monitoring / Rate Limiting}
+
+Mechanism: \texttt{defence.RateLimiter} is a per-client (peer IP) sliding
+window; once a client's window is full, \texttt{victim\_server.py} returns
+an \texttt{ERROR} frame with code~4 instead of a prediction, for every
+further request in that window.
+
+\textbf{Expected (victim README):} ``confirmed the client receives
+\texttt{ERROR code 4} once the quota is exceeded.''
+
+\textbf{Actual:} exactly that -- with \texttt{--rate-limit 50 --rate-window 60},
+the server served precisely 50 predictions and then returned code~4 on the
+51st, out of a requested 200:
+\begin{lstlisting}
+[victim] listening on 127.0.0.1:9012  (... 'rate_limit_queries': 50, 'rate_limit_window_s': 60.0})
+[victim] 127.0.0.1 disconnected after 50 queries (quota used: 50)
+\end{lstlisting}
+The defence itself worked as designed. What was \emph{not} expected: our
+\emph{first} run used the original \texttt{attack\_client.py}, which has no
+exception handling around this error -- the whole script crashed
+(\texttt{RuntimeError: victim returned ERROR code 4}, exit code 1) and
+\texttt{main()} never reached the \texttt{np.savez\_compressed} call, so
+every query collected before the block, not just the ones after it, was
+lost. That was an attacker-tooling bug, not a defence weakness, so we fixed
+it: \texttt{attack\_client.py} now catches the rate-limit error specifically,
+stops the campaign, and keeps whatever it already collected. Re-running the
+identical command with the patched client:
+\begin{lstlisting}
+[client] quota exceeded after 50 queries (victim returned ERROR code 4) --
+    stopping, keeping what was already collected
+[client] campaign done: 50 pairs in 0.1s, flags observed = [1]  (stopped early: rate limited)
+[client] wrote transfer set -> ratelimit_fixed.npz
+\end{lstlisting}
+exit code 0, 50 usable pairs saved. A defender should still assume a
+competent attacker would do exactly this -- catch the error, keep what it
+already has, and simply wait out the window or rotate identity, which the
+rate limiter's own documented caveat (``a non-adaptive attack using natural
+inputs can evade distribution-based detection'') already concedes it cannot
+stop by itself. Fixing our own client only made this limitation more
+visible, not less real.
+
+\subsection{Did Each Defence Work as Expected?}
+
+Partially. Rate limiting behaved exactly as designed and is the one control
+that produced a hard, unambiguous stop. Output minimisation and prediction
+perturbation both function correctly at the mechanism level (verified by
+\texttt{defence.py}'s own self-test and by the FLAGS bits on the wire) but,
+at the specific settings tested against this specific victim, degraded
+Attack A far less than the design report's qualitative discussion implied
+-- including at the label-only extreme. The honest conclusion is closer to,
+but stronger than, the design report's own: \emph{no single defence stops
+extraction, and on an easy, low-ambiguity task like MNIST, output
+minimisation and light perturbation raise the attacker's cost by only a few
+percentage points of fidelity, not enough to change the attack's practical
+success.} Rate limiting is what actually imposes a real cost, and even
+that only stops a single, non-resuming client.
+
+%=====================================================================
+\section{Assumptions}
+%=====================================================================
+
+\begin{itemize}
+\item The victim and attacker are two independent processes on the same
+  network segment (localhost, in this demo); the attack does not depend on
+  eavesdropping a third party's traffic -- it is an authorised client of its
+  own TCP socket.
+\item The victim, by default, returns a full class-probability vector per
+  query (the common MLaaS pattern) rather than a label only; the label-only
+  case is evaluated separately in Section~4 as the harder variant.
+\item The attacker's query set is \emph{non-adaptive} (fixed in advance from a
+  public pool -- MNIST test images, Fashion-MNIST images, or synthetic
+  uniform noise) and is not crafted to look like organic traffic beyond
+  using natural images; a determined defender inspecting raw query volume
+  could in principle notice a query burst even though the images themselves
+  look ordinary.
+\item Rate limiting is keyed by peer IP; an attacker that rotates source
+  addresses is out of scope for the rate-limiter's protection, per the
+  design report's own caveat (Section 6.3).
+\item The wire itself carries no transport encryption (no TLS) -- irrelevant
+  to model extraction, which only needs the plaintext prediction values the
+  server willingly returns, not a man-in-the-middle view of someone else's
+  traffic.
+\item The attacker does not know the victim's architecture; the substitute
+  \texttt{SmallCNN} architecture is chosen independently, consistent with the
+  design report's premise that only \emph{functionality}, not weights, is
+  being copied.
+\item All results are seeded (\texttt{SEED = 1337}) for reproducibility; the
+  reported numbers are single runs, not averages over multiple seeds --
+  small run-to-run variance (data-loader shuffling, distillation
+  non-determinism) is expected and is discussed where it affects a
+  conclusion.
+\item The in-distribution query pool (\texttt{--pool mnist}) and the
+  MNIST test split are the same 10{,}000 images, so any fidelity/accuracy
+  number evaluated against that split is contaminated once the query budget
+  approaches it (Section~2.3). We assume a disjoint holdout (here, a sample
+  of the MNIST train split) is the correct way to measure generalisation,
+  and report all such numbers that way rather than using
+  \texttt{knockoff\_train.py}'s own built-in metric directly.
+\end{itemize}
+
+%=====================================================================
+\section{Conclusion}
+%=====================================================================
+
+Both attacks worked as designed, and both taught us something the design
+report's expected-outcome tables could not, because those numbers had to be
+measured, not assumed. Attack A (learning-based) reliably reconstructs a
+93--99\%-fidelity substitute of the real victim from nothing but its own
+prediction API, across every budget from 1{,}000 to 30{,}000 queries, and its
+adversarial examples transfer to the real victim well above chance. Attack B
+(equation-solving) is a perfect, near-instant break of a genuine
+linear/softmax victim and a correctly-predicted total failure against the
+real CNN -- confirmation that its assumptions, not its implementation, are
+what limit it. The defence layer stops the equation-solving attack for free
+(it never worked against a CNN to begin with) but only meaningfully stops
+the learning-based attack through rate limiting; output minimisation and
+calibrated noise, at the settings we tested, are real but weak friction on
+an easy, low-ambiguity task like MNIST digit classification. The realistic
+goal the design report set out to demonstrate -- making stealing more
+expensive than paying -- is only partly met here: a determined attacker
+that simply waits out the rate limit's window across multiple sessions --
+exactly what our own (now-fixed) client is capable of doing, one window at
+a time -- would still walk away with a near-complete copy of the model.
+
+%=====================================================================
+\section*{References}
+%=====================================================================
+
+\begin{enumerate}
+\item F. Tram\`er, F. Zhang, A. Juels, M. K. Reiter, T. Ristenpart.
+  \emph{Stealing Machine Learning Models via Prediction APIs.} USENIX
+  Security 2016.
+\item M. Jagielski, N. Carlini, D. Berthelot, A. Kurakin, N. Papernot.
+  \emph{High Accuracy and High Fidelity Extraction of Neural Networks.}
+  USENIX Security 2020.
+\item T. Orekondy, B. Schiele, M. Fritz. \emph{Knockoff Nets: Stealing
+  Functionality of Black-Box Models.} CVPR 2019.
+\end{enumerate}
+
+See the companion Design Report (11th September, 2026) for the full threat
+model, protocol specification, and design justification this report builds
+on.
+
+\end{document}

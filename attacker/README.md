@@ -13,6 +13,7 @@ Pritu's real server.
 | `mock_victim.py` | Arian (dev aid) | Throwaway TCP server that speaks the protocol so the client can be tested. **Not graded** — swap for Pritu's `victim_server.py` at integration. |
 | `attack_client.py` | **Arian** | Online phase: query engine + response parser → writes `transfer_set.npz`. |
 | `knockoff_train.py` | **Arian** | Offline phase: soft-label distillation → trains and saves the knockoff `f_hat`. |
+| `adv_transfer_eval.py` | **Arian** | Evaluation only (not part of the attack): loads a trained knockoff and the real victim checkpoint, reports accuracy, fidelity, and hand-implemented FGSM adversarial-example transfer. Evaluates on the MNIST *train* split by default, since `--pool mnist` draws queries from the *test* split. |
 
 Pritu owns `victim_server.py`, `defence.py`, and `equation_solve.py`.
 

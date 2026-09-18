@@ -1,0 +1,202 @@
+{
+  "k_b1000": {
+    "checkpoint": "k_b1000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9143333435058594,
+    "knockoff_fidelity_vs_victim": 0.9143333435058594,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.18133333333333335,
+        "transfer_fool_rate_on_victim": 0.004666666666666667
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.3433333333333333,
+        "transfer_fool_rate_on_victim": 0.026333333333333334
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.77,
+        "transfer_fool_rate_on_victim": 0.3463333333333333
+      }
+    }
+  },
+  "k_b10000": {
+    "checkpoint": "k_b10000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9850000143051147,
+    "knockoff_fidelity_vs_victim": 0.9863333106040955,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.05433333333333333,
+        "transfer_fool_rate_on_victim": 0.010666666666666666
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.145,
+        "transfer_fool_rate_on_victim": 0.07033333333333333
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.6133333333333333,
+        "transfer_fool_rate_on_victim": 0.481
+      }
+    }
+  },
+  "k_b30000": {
+    "checkpoint": "k_b30000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.984333336353302,
+    "knockoff_fidelity_vs_victim": 0.9856666922569275,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.051666666666666666,
+        "transfer_fool_rate_on_victim": 0.010666666666666666
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.13966666666666666,
+        "transfer_fool_rate_on_victim": 0.051666666666666666
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.5673333333333334,
+        "transfer_fool_rate_on_victim": 0.472
+      }
+    }
+  },
+  "k_b5000": {
+    "checkpoint": "k_b5000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9746666550636292,
+    "knockoff_fidelity_vs_victim": 0.9753333330154419,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.071,
+        "transfer_fool_rate_on_victim": 0.009
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.16433333333333333,
+        "transfer_fool_rate_on_victim": 0.04733333333333333
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.593,
+        "transfer_fool_rate_on_victim": 0.463
+      }
+    }
+  },
+  "k_d1000": {
+    "checkpoint": "k_d1000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9156666398048401,
+    "knockoff_fidelity_vs_victim": 0.9156666398048401,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.165,
+        "transfer_fool_rate_on_victim": 0.005666666666666667
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.268,
+        "transfer_fool_rate_on_victim": 0.027666666666666666
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.6213333333333333,
+        "transfer_fool_rate_on_victim": 0.369
+      }
+    }
+  },
+  "k_d10000": {
+    "checkpoint": "k_d10000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.984000027179718,
+    "knockoff_fidelity_vs_victim": 0.984000027179718,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.051666666666666666,
+        "transfer_fool_rate_on_victim": 0.009333333333333334
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.12533333333333332,
+        "transfer_fool_rate_on_victim": 0.04533333333333334
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.4663333333333333,
+        "transfer_fool_rate_on_victim": 0.48733333333333334
+      }
+    }
+  },
+  "k_d30000": {
+    "checkpoint": "k_d30000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9829999804496765,
+    "knockoff_fidelity_vs_victim": 0.9823333621025085,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.05266666666666667,
+        "transfer_fool_rate_on_victim": 0.006333333333333333
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.15,
+        "transfer_fool_rate_on_victim": 0.047
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.7893333333333333,
+        "transfer_fool_rate_on_victim": 0.5286666666666666
+      }
+    }
+  },
+  "k_d5000": {
+    "checkpoint": "k_d5000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9766666889190674,
+    "knockoff_fidelity_vs_victim": 0.9769999980926514,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.07033333333333333,
+        "transfer_fool_rate_on_victim": 0.007
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.17066666666666666,
+        "transfer_fool_rate_on_victim": 0.04733333333333333
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.613,
+        "transfer_fool_rate_on_victim": 0.5326666666666666
+      }
+    }
+  },
+  "k_labelonly10000": {
+    "checkpoint": "k_labelonly10000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.9829999804496765,
+    "knockoff_fidelity_vs_victim": 0.9826666712760925,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.059,
+        "transfer_fool_rate_on_victim": 0.009333333333333334
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.16133333333333333,
+        "transfer_fool_rate_on_victim": 0.037333333333333336
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.49733333333333335,
+        "transfer_fool_rate_on_victim": 0.34
+      }
+    }
+  },
+  "k_ood10000": {
+    "checkpoint": "k_ood10000.pt",
+    "victim_accuracy_on_test": 0.9959999918937683,
+    "knockoff_accuracy_vs_ground_truth": 0.8363333344459534,
+    "knockoff_fidelity_vs_victim": 0.8383333086967468,
+    "adversarial_transfer": {
+      "0.05": {
+        "white_box_fool_rate_on_knockoff": 0.4176666666666667,
+        "transfer_fool_rate_on_victim": 0.011666666666666667
+      },
+      "0.1": {
+        "white_box_fool_rate_on_knockoff": 0.678,
+        "transfer_fool_rate_on_victim": 0.12633333333333333
+      },
+      "0.2": {
+        "white_box_fool_rate_on_knockoff": 0.9106666666666666,
+        "transfer_fool_rate_on_victim": 0.5133333333333333
+      }
+    }
+  }
+}

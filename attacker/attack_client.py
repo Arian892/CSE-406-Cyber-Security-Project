@@ -81,12 +81,28 @@ def build_query_pool(pool: str, n: int, data_dir: str, seed: int, hw=(28, 28)):
 # Query engine  --  one protocol round trip per input
 # --------------------------------------------------------------------------- #
 
+class RateLimitedError(RuntimeError):
+    """Raised when the victim's per-client quota is exceeded (ERROR code 4).
+
+    Kept distinct from other protocol errors so the campaign loop can treat
+    it as an expected stopping condition -- a rate-limited attacker should
+    keep what it already collected, not lose the whole run.
+    """
+
+    def __init__(self, code: int):
+        super().__init__(f"victim returned ERROR code {code}")
+        self.code = code
+
+
 def send_query(sock: socket.socket, image: np.ndarray, request_id: int):
     """One black-box round trip: send REQUEST, read RESPONSE, return (probs, flags)."""
     P.send_frame(sock, P.encode_request(image, request_id))
     msg_type, rid, payload = P.recv_frame(sock)
     if msg_type == P.MSG_ERROR:
-        raise RuntimeError(f"victim returned ERROR code {P.decode_error(payload)}")
+        code = P.decode_error(payload)
+        if code == P.ERR_RATE_LIMIT:
+            raise RateLimitedError(code)
+        raise RuntimeError(f"victim returned ERROR code {code}")
     if msg_type != P.MSG_RESPONSE:
         raise RuntimeError(f"unexpected message type {msg_type}")
     if rid != request_id:
@@ -98,15 +114,24 @@ def send_query(sock: socket.socket, image: np.ndarray, request_id: int):
 def run_campaign(host, port, images, log_every=1000):
     """
     Stream every image to the victim and collect the prediction vectors.
+    If the victim's rate limiter kicks in, stop and keep whatever was
+    already collected instead of losing the whole campaign.
     Returns (kept_images (M,H,W,1), probs (M,K), flags_seen set).
     """
     kept_imgs, probs_list, flags_seen = [], [], set()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((host, port))
     t0 = time.time()
+    stopped_early = False
     try:
         for i, img in enumerate(images):
-            probs, flags = send_query(sock, img, request_id=i + 1)
+            try:
+                probs, flags = send_query(sock, img, request_id=i + 1)
+            except RateLimitedError as e:
+                print(f"[client] quota exceeded after {len(kept_imgs)} queries "
+                      f"({e}) -- stopping, keeping what was already collected")
+                stopped_early = True
+                break
             kept_imgs.append(img)
             probs_list.append(probs)
             flags_seen.add(flags)
@@ -120,7 +145,8 @@ def run_campaign(host, port, images, log_every=1000):
     probs_arr = np.stack(probs_list).astype(np.float32)
     dt = time.time() - t0
     print(f"[client] campaign done: {len(imgs)} pairs in {dt:.1f}s, "
-          f"flags observed = {sorted(flags_seen)}")
+          f"flags observed = {sorted(flags_seen)}"
+          + ("  (stopped early: rate limited)" if stopped_early else ""))
     return imgs, probs_arr, flags_seen
 
 

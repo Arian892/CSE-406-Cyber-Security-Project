@@ -37,6 +37,16 @@ env/
 data/
 
 # =========================
+# Experiment results (regenerable via README's reproduction steps) --
+# heavy binary artifacts stay out of git wholesale, regardless of extension;
+# the small results/*.json and results/eval/*.json summaries are the actual
+# evidence behind the Final Report's numbers and are kept.
+# =========================
+results/campaigns/
+results/knockoffs/
+results/logs/
+
+# =========================
 # OS / Editor
 # =========================
 .DS_Store
